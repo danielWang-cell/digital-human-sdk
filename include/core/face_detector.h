@@ -33,6 +33,22 @@ public:
  */
     std::vector<cv::Rect> detect(const cv::Mat& image);
 
+
+/**
+ * @brief 加载关键点检测模型
+ * @param modelPath.dat 文件路径
+ * @return 是否加载成功
+ */
+    bool loadLandmarkModel(const std::string& modelPath);
+
+/**
+ * @brief
+ * @param image 原始图像
+ * @param faceRect 人脸框（由 detect 返回）
+ * @return 68个点的坐标列表（如果失败返回空）
+ */
+    std::vector<cv::Point> getLandmarks(const cv::Mat& image, const cv::Rect& faceRect);
+    
 private:
     struct Impl;
     std::unique_ptr<Impl> pImpl;
