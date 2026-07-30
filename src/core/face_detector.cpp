@@ -5,6 +5,7 @@
 #include <dlib/opencv.h>
 #include <dlib/image_processing.h>
 #include <dlib/image_processing/frontal_face_detector.h>
+#include <type_traits>
 
 #include "core/face_detector.h"
 
@@ -24,6 +25,28 @@ struct FaceDetector::Impl {
         // 初始化检测器
         detector = dlib::get_frontal_face_detector();
     }
+    
+    // 加载模型
+    bool loadLandmarkModel(const std::string& modelPath) {
+        // 模型路径是否为空
+        if (modelPath.empty()) {
+            std::cerr << "[FaceDetector] Empty landmark model path." << std::endl;
+            is_model_loaded = false;
+            return false;
+        }
+        try {
+            dlib::deserialize(modelPath) >> landmarks_predictor;
+            is_model_loaded = true;
+            return true;
+        } catch (const dlib::serialization_error& e) {
+            std::cerr << "[FaceDetector] Load model failed: " << e.what() << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "[FaceDetector] Unexpected load error: " << e.what() << std::endl;
+        }
+        is_model_loaded = false;
+        return false;
+    }
+
 
     // 内部实现函数 
     std::vector<cv::Rect> detect(const cv::Mat& image) {
@@ -92,6 +115,54 @@ struct FaceDetector::Impl {
 
         return results;
     }
+
+    // 获取关键点实现
+    std::vector<cv::Point> getLandmarks(const cv::Mat& image, const cv::Rect& faceRect) {
+        std::vector<cv::Point> landmarks;
+
+        // 检测模型是否加载
+        if (!is_model_loaded) {
+            std::cerr << "[FaceDetector] Error: Landmark model not loaded!" << std::endl;
+            return landmarks;
+        }
+        // 如果图片为空，直接返回
+        if (image.empty()) {
+            return landmarks;
+        }
+
+        // 64 * 64 以下的人脸关键点不准确，所以做降级处理，在这以下则放弃检测
+        if (faceRect.width < 64 || faceRect.height < 64) {
+            std::cerr << "[FaceDetector] Warning: Face too small ("
+                      << faceRect.width << "x" <<faceRect.height << "), skipping landmarks." << std::endl;
+            return landmarks;
+        }
+
+        try {
+            // 这里使用原始分辨率的图像来获得最高的关键点精度
+            // dlib::cv_image 是零拷贝的，所以大图也不会有内存开销，只是计算慢一点
+            dlib::cv_image<dlib::bgr_pixel> dlib_img(image);
+
+            // 转换 Rect (OpenCv -> dlib)
+            dlib::rectangle dlib_rect(
+                faceRect.x,
+                faceRect.y,
+                faceRect.x + faceRect.width - 1,
+                faceRect.y + faceRect.height - 1
+            );
+
+            // 预测
+            dlib::full_object_detection shape = landmarks_predictor(dlib_img, dlib_rect);
+
+            // 结果转换
+            landmarks.reserve(shape.num_parts());
+            for (unsigned long k = 0; k < shape.num_parts(); k++) {
+                landmarks.emplace_back(shape.part(k).x(), shape.part(k).y());
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[FaceDetector] Landmark Error: " << e.what() << std::endl;
+        }
+        return landmarks;
+    }
 };
 
 FaceDetector::FaceDetector() : pImpl(std::make_unique<Impl>()){}
@@ -102,6 +173,13 @@ FaceDetector& FaceDetector::operator=(FaceDetector&&) noexcept = default;
 
 std::vector<cv::Rect> FaceDetector::detect(const cv::Mat& image) {
     return pImpl->detect(image);
+}
+bool FaceDetector::loadLandmarkModel(const std::string& modelPath) {
+    return pImpl->loadLandmarkModel(modelPath);
+}
+
+std::vector<cv::Point> FaceDetector::getLandmarks(const cv::Mat& image, const cv::Rect& faceRect) {
+    return pImpl->getLandmarks(image, faceRect);
 }
 
 }
