@@ -1,3 +1,8 @@
+#ifndef DIGITAL_HUMAN_CORE_FACE_BLENDER_H_
+#define DIGITAL_HUMAN_CORE_FACE_BLENDER_H_
+
+#include <memory>               
+#include <opencv2/core.hpp>    
 /**
  * @brief 人脸融合模块
  * 负责将 Wav2Lip 生成的 96 x 96 嘴部结果贴回原图
@@ -9,6 +14,9 @@
  *      4. 使用 alpha mask 做平滑融合；
  *      5. 少量恢复原图细节，减轻生成区域的模糊感。
  */
+namespace DigitalHuman {
+namespace Core {
+
 class FaceBlender {
 public: 
     FaceBlender();
@@ -53,3 +61,7 @@ private:
     struct Impl;
     std::unique_ptr<Impl> pImpl;
 };
+
+} // namespace Core
+} // namespace DigitalHuman
+#endif // DIGITAL_HUMAN_CORE_FACE_BLENDER_H_
