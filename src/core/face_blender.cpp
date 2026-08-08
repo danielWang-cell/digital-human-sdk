@@ -118,7 +118,7 @@ FaceBlender::~FaceBlender() = default;
 
 FaceBlender::FaceBlender(FaceBlender&&) noexcept = default;
 
-FaceBlender& FaceBender::operator=(FaceBlender&&) noexcept = default;
+FaceBlender& FaceBlender::operator=(FaceBlender&&) noexcept = default;
 
 cv::Mat FaceBlender::sharpen96(const cv::Mat& generated_96) const {
     return pImpl->sharpen96(generated_96);
