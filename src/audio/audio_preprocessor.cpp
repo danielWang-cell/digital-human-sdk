@@ -43,17 +43,30 @@ struct AudioPreprocessor::Impl {
 
         float gain = target_peak / max_val;
 
-        // 限制最大增益，防止弱噪声被过度放大
-        if (gain > 20.0f) {
-            gain = 20.0f;
-        }
+        // // 限制最大增益，防止弱噪声被过度放大
+        // if (gain > 20.0f) {
+        //     gain = 20.0f;
+        // }
 
-        if (gain < 0.0f) {
-            gain = 1.0f;
-        }
+        // if (gain < 0.0f) {
+        //     gain = 1.0f;
+        // }
 
-        // 应用增益，如果 gain 接近 1，无需处理
-        if (gain - 1.0f > 1e-3f) {
+        // // 应用增益，如果 gain 接近 1，无需处理
+        // if (gain - 1.0f > 1e-3f) {
+        //     for (auto& sample : pcm_data) {
+        //         sample *= gain;
+        //         // 安全限制，避免异常值超过 [-1.0, 1.0] 太多
+        //         sample = std::max(-1.0f, std::min(sample, 1.0f));
+        //     }
+        // }
+        // float gain = target_peak / max_val;
+
+        // 限制增益范围：防止弱噪声被过度放大，同时确保增益不小于 0（允许 gain < 1.0 以压低声音）
+        gain = std::clamp(gain, 0.0f, 20.0f);
+
+        // 应用增益：只要 gain 与 1.0f 差异大于阈值（无论是放大 gain > 1 还是缩小 gain < 1），都进行处理
+        if (std::abs(gain - 1.0f) > 1e-3f) {
             for (auto& sample : pcm_data) {
                 sample *= gain;
                 // 安全限制，避免异常值超过 [-1.0, 1.0] 太多
