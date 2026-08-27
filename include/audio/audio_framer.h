@@ -12,7 +12,7 @@ namespace Audio {
  */
 
 enum class WindowType {
-    Node,       // 不使用窗函数，相当于矩形窗
+    None,       // 不使用窗函数，相当于矩形窗
     Hamming,    // 汉明窗
     Hanning     // 汉宁窗
 };

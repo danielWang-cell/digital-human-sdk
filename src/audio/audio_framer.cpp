@@ -78,7 +78,7 @@ struct AudioFramer::Impl {
                     ));
                     break;
 
-                case WindowType::Node:
+                case WindowType::None:
                 default:
                     // 不加窗，window[i] = 1.0，表示 frame[i] 乘以 1 后保持不变
                     window[i] = 1.0f;
@@ -99,19 +99,26 @@ struct AudioFramer::Impl {
                                    size_t start_index,
                                    bool pad_tail) const 
     {
+        
+        // 1. 数据输入为空或起始索引越界，说明已经没有数据可读，直接返回空 vector
+        if (pcm_data.empty() || start_index >= pcm_data.size()) {
+            return {};
+        }
+
+        // available 表示从 start_index 开始，输入 pcm_data 中还剩多少个采样点
+        size_t available = pcm_data.size() - start_index;
+
+        // 2. 如果剩余数据不足一帧，且明确指定不补零，直接返回空 vector
+        if (!pad_tail && available < static_cast<size_t>(frame_size)) {
+            return {};
+        }
+
+        // 3. 正常创建帧容器并填充数据
         /**
          * 默认创建一帧全 0 数据。这样当尾部不足一帧且 pad_tail = true 时，
          * 未被实际 PCM 覆盖的部分天然就是 0，相当于补零
          */
         std::vector<float> frame(frame_size, 0.0f);
-
-        // 如果输入为空，或者起始位置已经超过输入长度，则直接返回一帧全 0 数据
-        if (pcm_data.empty() || start_index >= pcm_data.size()) {
-            return frame;
-        }
-        // available 表示从 start_index 开始，输入 pcm_data 中还剩多少个采样点
-        size_t available = pcm_data.size() - start_index;
-
         size_t copy_len = std::min(available, static_cast<size_t>(frame_size));
 
         /**
@@ -125,12 +132,6 @@ struct AudioFramer::Impl {
             frame.begin()
         );
 
-        /**
-         * 如果尾部不足一帧，并且不允许补零，则清空frame
-         */
-        if (!pad_tail && copy_len < static_cast<size_t>(frame_size)) {
-            frame.clear();
-        }
         return frame;
     }
 
@@ -182,6 +183,12 @@ struct AudioFramer::Impl {
 
             // 保存当前帧
             frames.push_back(std::move(frame));
+
+            // 如果当前 start 加上一帧的长度已经超出了总数据量，说明这一帧是最后生成的补零帧
+            // 处理完直接跳出，避免按 stride_size 继续推进产生大量全 0 帧
+            if (start + frame_size > pcm_data.size()) {
+                break;
+            }
 
             // 移动到下一帧起始位置
             start += static_cast<size_t>(stride_size);
