@@ -226,6 +226,7 @@ std::vector<float> MelFeatureExtractor::extractVector(const std::vector<float>& 
  */
 cv::Mat MelFeatureExtractor::extractBatch(const std::vector<std::vector<float>>& frames) {
     if (frames.empty()) {
+        std::cerr << "[WARNING] [MelFeatureExtractor::extractBatch] Input frames is empty!" << std::endl;
         return cv::Mat();
     }
 
@@ -235,6 +236,8 @@ cv::Mat MelFeatureExtractor::extractBatch(const std::vector<std::vector<float>>&
         // 对每一帧单独提取 Mel 特征
         cv::Mat row = pImpl->extract(frames[i]);
         if (row.empty()) {
+            std::cerr << "[WARNING] [MelFeatureExtractor::extractBatch] Failed to extract feature for frame " 
+                      << i << ", filling row with zeros." << std::endl;
             // 如果某一帧无效，则该行填 0
             batch_mels.row(static_cast<int>(i)).setTo(0.0f);
         } else {
