@@ -6,6 +6,7 @@
 *.obj
 build/
 out/
+.worktrees/
 .vscode/
 .DS_Store
 *.lib
