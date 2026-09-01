@@ -15,7 +15,7 @@ struct InferenceConfig {
     int num_threads = 4;        // 线程数
     bool use_vulkan = false;    // 是否使用 GPU，需编译时开启 Vulkan
     bool use_fp16 = true;       // 是否使用半精度（加速）
-    bool light_model = true;    // 开启省内存模式
+    bool light_mode = true;    // 开启省内存模式
 };
 
 /**
