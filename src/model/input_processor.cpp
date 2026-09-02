@@ -1,6 +1,7 @@
 #include <iostream>
 #include <algorithm>
 #include <opencv2/imgproc.hpp>
+#include <spdlog/spdlog.h>
 
 #include "model/input_processor.h"
 
@@ -16,7 +17,7 @@ struct InputProcessor::Impl {
 
     ncnn::Mat processImage(const cv::Mat& image, const cv::Rect& mouth_roi) {
         if (image.empty()) {
-            std::cerr << "[InputProcessor] Error: Empty input image." << std::endl;
+            spdlog::error("[InputProcessor] Empty input image.");
             return ncnn::Mat();
         }
 
@@ -92,8 +93,8 @@ struct InputProcessor::Impl {
     ncnn::Mat processAudio(const std::vector<float>& mel_data) {
         // 检查数据长度
         if (mel_data.size() != static_cast<size_t>(MEL_H * MEL_W)) {
-            std::cerr << "[InputProcessor] Error: Invalid audio data size. Expected "
-                      << MEL_H * MEL_W << ", got " << mel_data.size() << std::endl;
+            spdlog::error("[InputProcessor] Invalid audio data size. Expected {}, got {}",
+                          MEL_H * MEL_W, mel_data.size());
             return ncnn::Mat();  
         }
 
@@ -125,10 +126,8 @@ bool InputProcessor::validateTensor(const ncnn::Mat& tensor, int expected_c, int
         return false;
     }
     if (tensor.c != expected_c || tensor.h != expected_h || tensor.w != expected_w) {
-        std::cerr << "[InputProcessor] Validation Failed! Expected: "
-                  << expected_w << "x" << expected_h << "x" << expected_c
-                  << ", Got: "
-                  << tensor.w << "x" << tensor.h << "x" << tensor.c << std::endl;
+        spdlog::error("[InputProcessor] Validation Failed! Expected {}x{}x{}, got {}x{}x{}",
+                      expected_w, expected_h, expected_c, tensor.w, tensor.h, tensor.c);
         return false;
     }
     return true;
