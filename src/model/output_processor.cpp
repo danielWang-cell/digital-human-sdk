@@ -89,14 +89,14 @@ struct OutputProcessor::Impl {
                 
                 // 模型输出理论范围是 [-1, 1]（Wav2Lip 输出为 tanh）
                 // 防止极越界值造成颜色溢出
-                const float b = std::clamp(b_channel[idx], -1.0f, 1.0f);
-                const float g = std::clamp(g_channel[idx], -1.0f, 1.0f);
-                const float r = std::clamp(r_channel[idx], -1.0f, 1.0f);
+                const float b = std::clamp(b_channel[idx], 0.0f, 1.0f);
+                const float g = std::clamp(g_channel[idx], 0.0f, 1.0f);
+                const float r = std::clamp(r_channel[idx], 0.0f, 1.0f);
 
                 row[x] = cv::Vec3b(
-                    static_cast<unsigned char>((b + 1.0f) * 127.5f + 0.5f),
-                    static_cast<unsigned char>((g + 1.0f) * 127.5f + 0.5f),
-                    static_cast<unsigned char>((r + 1.0f) * 127.5f + 0.5f)
+                    static_cast<unsigned char>(b * 255.0f + 0.5f),
+                    static_cast<unsigned char>(g * 255.0f + 0.5f),
+                    static_cast<unsigned char>(r * 255.0f + 0.5f)
                 );
             }
         }
