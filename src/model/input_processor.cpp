@@ -44,10 +44,10 @@ struct InputProcessor::Impl {
         // 涂黑（置 0）
         cv::rectangle(masked_img, roi, cv::Scalar(0, 0, 0), -1);
 
-        // 3. 归一化参数 ( 0 - 255 -> -1.0 - 1.0 )
-        // mean = 127.5, norm = 1 / 127.5
-        const float mean_vals[3] = {127.5f, 127.5f, 127.5f};
-        const float norm_vals[3] = {1.0f / 127.5f, 1.0f / 127.5f, 1.0f / 127.5f};
+        // 3. 归一化参数 ( 0 - 255 -> 0.0 - 1.0 )
+        // mean = 0.0, norm = 1 / 255.0
+        const float mean_vals[3] = {0.0f, 0.0f, 0.0f};
+        const float norm_vals[3] = {1.0f / 255.0f, 1.0f / 255.0f, 1.0f / 255.0f};
 
         // 4. 转换(为 ncnn::Mat ( HWC -> CHW, BGR -> RGB 视训练模型而定 )
         ncnn::Mat ncnn_ref = ncnn::Mat::from_pixels(
