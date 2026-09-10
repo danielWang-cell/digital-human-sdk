@@ -58,6 +58,8 @@ public:
      */
     bool pull(std::vector<float>& out_data, size_t min_samples, int timeout_ms = 0);
 
+    // 回调不再创建 std::vector，改为 pullRaw() 直接写入 PortAudio 的输出缓冲区
+    bool pullRaw(float* out_data, size_t min_samples, int timeout_ms = 0);
     
     /**
      * @brief 设置溢出/异常回调 
