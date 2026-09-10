@@ -56,8 +56,10 @@ struct FrameScheduler::Impl {
     cv::Mat getFrameForRender(double audio_time_ms) {
         std::lock_guard<std::mutex> lock(mtx);
 
-        // 缓冲策略
-        if (queue.empty()) {
+        // 缓冲策略与门禁控制
+        // 如果队列为空 或 处于缓冲阻断状态（is_buffering == true）
+        // 不能消费队列，阻断渲染消费，强行让 pushFrame 积攒到 min_buffer_size
+        if (queue.empty() || is_buffering) {
             is_buffering = true;
             return last_frame;  // 如果缓冲队列空了，返回上一帧的数据，避免黑屏
         }
@@ -67,13 +69,14 @@ struct FrameScheduler::Impl {
             
             VideoFrame& head = queue.front();
             // Diff = 视频的计划时间 - 音频的实际时间
-            // > 0 代表视频快乐
+            // > 0 代表视频快了
             // < 0 代表视频慢了
             double diff = head.pts - audio_time_ms;
 
             // 策略 1 滞后处理
             if (diff < -SYN_THRESHOLD) {
-                queue.pop_front();  // 马上丢弃这一帧，马上检查下一帧是否能够追上
+                last_frame = head.image;    // 即使丢帧，也更新 last_frame 为最新画面
+                queue.pop_front();          // 马上丢弃这一帧，马上检查下一帧是否能够追上
                 dropped_count++;
                 continue;
             }
@@ -85,10 +88,16 @@ struct FrameScheduler::Impl {
             }
 
             // 策略 3 正常处理
-            last_frame = head.image.clone();    // 更新上一帧的缓存
+            last_frame = head.image;            // 更新上一帧的缓存，浅拷贝
             queue.pop_front();                  // 消费当前帧
+            is_buffering = false;               // 正常拿到帧，解锁/重置缓冲标记
             return last_frame;
         }
+
+        // 队列中的所有帧均已超时丢弃的情况下
+        // 保持显示上一帧，直至新帧到达并重新填满缓存队列
+        is_buffering = true;
+        return last_frame;
     }
 
     void reset() {
