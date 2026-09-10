@@ -66,6 +66,14 @@ include_directories(${dlib_INCLUDE_DIRS})
 find_package(spdlog REQUIRED)
 message(STATUS ">> spdlog Found: ${spdlog_VERSION}")
 
+# 引入 pkg-config 工具
+find_package(PkgConfig REQUIRED)
+# 查找 portaudio-2.0
+pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
+# 告诉编译器去哪里找 <portaudio.h>
+include_directories(${PORTAUDIO_INCLUDE_DIRS})
+
+
 ######## 规范输出目录：编译出的库和可执行文件分别归类到 build/lib 和 build/bin
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
