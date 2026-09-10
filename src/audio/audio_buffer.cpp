@@ -48,22 +48,27 @@ struct AudioBuffer::Impl {
         current_size += len;
     } 
 
-    // 读取逻辑（必须在锁内调用）
-    void read_internal(std::vector<float>& out, size_t len) {
-        out.resize(len);
+    // 核心读取逻辑：直接拷贝到裸指针内存（Zero-allocation）
+    void read_internal_raw(float* out, size_t len) {
 
         // 分两步读取
         size_t first_chunk = std::min(len, capacity - read_pos);
-        std::copy(buffer.begin() + read_pos, buffer.begin() + read_pos + first_chunk, out.begin());
+        std::copy(buffer.begin() + read_pos, buffer.begin() + read_pos + first_chunk, out);
 
         size_t second_chunk = len - first_chunk;
         if (second_chunk > 0) {
-            std::copy(buffer.begin(), buffer.begin() + second_chunk, out.begin() + first_chunk);
+            std::copy(buffer.begin(), buffer.begin() + second_chunk, out + first_chunk);
         }
 
         // 更新读指针
         read_pos = (read_pos + len) % capacity;
         current_size -= len;
+    }
+
+    // 针对 vector 的包装接口：调整大小后直接调用底层 raw 接口
+    void read_internal(std::vector<float>& out, size_t len) {
+        out.resize(len);
+        read_internal_raw(out.data(), len);
     }
 
     size_t push(const std::vector<float>& data, BufferOverflowStrategy strategy) {
@@ -126,6 +131,29 @@ struct AudioBuffer::Impl {
         return input_len;
     }
 
+    bool pullRaw(float* out_data, size_t min_samples, int timeout_ms) {
+        std::unique_lock<std::mutex> lock(mtx);
+
+        bool success = false;
+        if (timeout_ms < 0) {
+            success = (current_size >= min_samples);
+        } else if (timeout_ms == 0) {
+            not_empty_cv.wait(lock, [&]{ return current_size >= min_samples; });
+            success = true;
+        } else {
+            success = not_empty_cv.wait_for(lock, std::chrono::milliseconds(timeout_ms), 
+                                            [&] { return current_size >= min_samples; });
+        }
+
+        if (success) {
+            read_internal_raw(out_data, min_samples);
+            not_full_cv.notify_one();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     bool pull(std::vector<float>& out_data, size_t min_samples, int timeout_ms) {
         std::unique_lock<std::mutex> lock(mtx);
 
@@ -174,6 +202,10 @@ bool AudioBuffer::pull(std::vector<float>& out_data, size_t min_samples, int tim
     return pImpl->pull(out_data, min_samples, timeout_ms);
 }
 
+bool AudioBuffer::pullRaw(float* out_data, size_t min_samples, int timeout_ms) {
+    return pImpl->pullRaw(out_data, min_samples, timeout_ms);
+}
+
 void AudioBuffer::setWarningCallback(WarningCallback cb) {
     std::lock_guard<std::mutex> lock(pImpl->mtx);
     pImpl->warning_cb = cb;
@@ -199,6 +231,9 @@ void AudioBuffer::clear() {
     pImpl->read_pos = 0;
     pImpl->write_pos = 0;
     pImpl->current_size = 0;
+    
+    // 唤醒因 Block 策略阻塞的生产者，防止死锁
+    pImpl->not_full_cv.notify_all();
 }
 
 } // namespace Audio

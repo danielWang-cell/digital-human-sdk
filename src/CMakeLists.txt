@@ -31,7 +31,9 @@ target_link_libraries(digital_human_core PUBLIC
     ${OpenCV_LIBS}
     ncnn
     PkgConfig::FFMPEG
+    ${PORTAUDIO_LIBRARIES}
     dlib::dlib
     spdlog::spdlog
 )
+
 
