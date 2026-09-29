@@ -4,12 +4,40 @@
 *.install
 *.o
 *.obj
+
+# Intermediate files
+models/
+MuseTalk/
 build/
 out/
-.worktrees/
+cmake-build-*/
 .vscode/
 .DS_Store
+
+# Libraries
 *.lib
 *.a
 *.so
 *.dll
+*.dylib
+
+# Local/build outputs
+build-*/
+.docker-build/
+web/node_modules/
+web/dist/
+*.mp4
+*.avi
+*.log
+*.jpg
+*.jpeg
+*.png
+*.wav
+*.mp3
+*.time
+models/*.bin
+models/*.dat
+models/*.param
+**/tmp/
+*.Zone.Identifier
+*.docx

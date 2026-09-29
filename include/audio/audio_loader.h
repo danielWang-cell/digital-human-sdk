@@ -10,7 +10,7 @@ namespace Audio {
 
 class AudioLoader {
 public:
-    // 构造函数，支持自定义目标采样率 (默认16k)
+    // 构造函数，支持自定义目标采样率（默认16k）
     explicit AudioLoader(int target_sample_rate = 16000);
     ~AudioLoader();
 
@@ -21,18 +21,10 @@ public:
     /**
      * @brief 加载并重采样音频
      * @param filename 路径 (支持 wav/mp3/aac等)
-     * @param out_pcm 输出缓冲区 (int16_t)
+     * @param out_pcm 输出缓冲区
      * @return 是否处理成功
      */
     bool load(const std::string& filename, std::vector<int16_t>& out_pcm);
-
-    /**
-     * @brief 加载音频文件，并且输出 float PCM 在 [-1.0, 1.0]
-     * @param filename 路径 (支持 wav/mp3/aac等)
-     * @param out_pcm 输出缓冲区 (float)
-     * @return 是否处理成功
-     */
-    bool loadFloat(const std::string& filename, std::vector<float>& out_pcm);
 
     /**
      * @brief 获取当前设置的目标采样率
@@ -40,9 +32,9 @@ public:
     int getTargetSampleRate() const;
 
 private:
-    struct Impl;
-    std::unique_ptr<Impl> pImpl;
+    struct Impl;            
+    std::unique_ptr<Impl> pimpl; 
 };
 
-} // namespace Audio
+} // namespace Core
 } // namespace DigitalHuman

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <atomic>
 #include <vector>
 #include <memory>
 
@@ -48,7 +47,7 @@ public:
     void pushData(const std::vector<float>& pcm_data);
 
     /**
-     * @brief 播放控制 
+     * @brief 播放控制
      */
     void play();
     void pause();
@@ -61,13 +60,12 @@ public:
     double getCurrentTime() const;
 
     /**
-     * @brief 获取当前播放状态 
+     * @brief 获取当前播放状态
      */
     PlayState getState() const;
 
-
     /**
-     * @brief 获取缓冲区中剩余数据的时长（毫秒） 
+     * @brief 获取缓冲区中剩余数据的时长 (毫秒)
      */
     double getBufferedDuration() const;
 
@@ -76,6 +74,5 @@ private:
     std::unique_ptr<Impl> pImpl;
 };
 
-}   // namespace Audio
-}   // namespace DigitalHuman
-
+} // namespace Audio
+} // namespace DigitalHuman

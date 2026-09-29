@@ -4,36 +4,35 @@
 
 #include "core/image_loader.h"
 
-// 定义命名空间
 namespace fs = std::filesystem;
 
-// 实现 ImageLoader 类
 namespace DigitalHuman {
 namespace Core {
 
-// Pimpl 的内部实现类，里面包含了 3 种方法
+// Pimpl的内部实现类，里面包含了3种方法
 struct ImageLoader::Impl {
-    cv::Mat loadFromFile(const std::string& filepath) {
+    cv::Mat loadFromFile(const std::string& filePath) {
         // 首先需要检查文件是否存在
-        if (!fs::exists(filepath)) {
-            throw ImageLoaderException("File does not exist: " + filepath);
+        if (!fs::exists(filePath)) {
+            throw ImageLoaderException("File does not exist: " + filePath);
         }
+
         // 加载图像，默认加载为彩色 BGR
-        cv::Mat image = cv::imread(filepath);
+        cv::Mat image = cv::imread(filePath);
         if (image.empty()) {
-            throw ImageLoaderException("Failed to decode image: " + filepath);
+            throw ImageLoaderException("Failed to decode image: " + filePath);
         } else {
             return image;
         }
     }
 
     cv::Mat loadFromMemory(const std::vector<unsigned char>& buffer) {
-        // 首先判断 buffer 是否为空
+        // 首先判断 Buffer 是否为空
         if (buffer.empty()) {
             throw ImageLoaderException("Buffer is empty");
         }
 
-        // buffer 不为空，使用 cv::imread 从内存解码
+        // Buffer 不为空，使用 cv::imdecode 从内存解码
         cv::Mat image;
 
         try {
@@ -41,35 +40,39 @@ struct ImageLoader::Impl {
         } catch (const cv::Exception& e) {
             throw ImageLoaderException("Failed to decode image from memory: " + std::string(e.what()));
         }
-
+        
         if (image.empty()) {
             throw ImageLoaderException("Failed to decode image from memory");
-        }
+        } 
 
         return image;
     }
 
-    std::vector<cv::Mat> loadBatch(const std::vector<std::string>& filepaths) {
-        std::vector<cv::Mat> images;
-        images.reserve(filepaths.size());
 
-        for (const auto& path : filepaths) {
+    std::vector<cv::Mat> loadBatch(const std::vector<std::string>& filePaths) {
+        std::vector<cv::Mat> images;
+        images.reserve(filePaths.size());  // 内存预分配
+
+        for (const auto& path : filePaths) {
             try {
                 cv::Mat image = loadFromFile(path);
                 images.push_back(image);
             } catch (const ImageLoaderException& e) {
-                std::cerr << "\033[31m[Batch Load Error] " << e.what() << "033[0m" << std::endl;
+                std::cerr << "\033[31m[Batch Load Error] " << e.what() << "\033[0m" << std::endl;
+
+                // 可选择存入一个空 Mat 保持索引对齐
                 // images.push_back(cv::Mat());
+                // 或者选择跳过当前文件
                 continue;
             }
         }
 
         return images;
     }
+    
 };
 
-// ImageLoader 的外部类，提供访问内部类的方法
-// 构造与析构函数
+
 ImageLoader::ImageLoader() : pImpl(std::make_unique<Impl>()){}
 
 ImageLoader::~ImageLoader() = default;
@@ -78,8 +81,8 @@ ImageLoader::~ImageLoader() = default;
 ImageLoader::ImageLoader(ImageLoader&&) noexcept = default;
 ImageLoader& ImageLoader::operator=(ImageLoader&&) noexcept = default;
 
-cv::Mat ImageLoader::loadFromFile(const std::string& filepath) {
-    return pImpl->loadFromFile(filepath);
+cv::Mat ImageLoader::loadFromFile(const std::string& filePath) {
+    return pImpl->loadFromFile(filePath);
 }
 
 cv::Mat ImageLoader::loadFromMemory(const std::vector<unsigned char>& buffer) {
@@ -90,5 +93,5 @@ std::vector<cv::Mat> ImageLoader::loadBatch(const std::vector<std::string>& file
     return pImpl->loadBatch(filepaths);
 }
 
-}
-}
+} // namespace Core
+} // namespace DigitalHuman

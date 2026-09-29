@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include <chrono> 
+#include <chrono>
 
 namespace DigitalHuman {
 namespace Core {
@@ -11,9 +11,9 @@ namespace Core {
  */
 enum class SyncAction {
     Render,     // 正常渲染
-    Drop,       // 丢帧，视频滞后
-    Wait,       // 等待，视频超前
-    Reset       // 重置，偏差过大
+    Drop,       // 丢帧 ，视频滞后
+    Wait,       // 等待 ，视频超前
+    Reset       // 重置 ，偏差过大
 };
 
 /**
@@ -64,5 +64,5 @@ private:
     std::unique_ptr<Impl> pImpl;
 };
 
-}   // namespace Core
-}   // namespace DigitalHuman
+} // namespace Core
+} // namespace DigitalHuman

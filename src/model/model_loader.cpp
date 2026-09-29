@@ -1,4 +1,3 @@
-#include <functional>
 #include <iostream>
 #include <chrono>
 #include <thread>
@@ -25,27 +24,30 @@ struct ModelLoader::Impl {
             return;
         }
 
-        // 构造 Wav2Lip 的输入，尺寸为 96 x 96
-        // 1. Audio: [Batch = 1, channel = 1, Mel = 80, Time = 16] -> ncnn: w = 16, h = 80, c = 1
+        // 构造 Wav2Lip 的输入 尺寸为 96 x 96
+        // 1. Audio: [Batch=1, Channel=1, Mel=80, Time=16] -> ncnn: w=16, h=80, c=1
         ncnn::Mat audio_in(16, 80, 1);
         audio_in.fill(0.0f);
 
-        // 2. Face: [Batch = 1, channel = 6, H = 96, W = 96] -> ncnn: w = 96, h = 96, c = 6
+        // 2. Face: [Batch=1, Channel=6, H=96, W=96] -> ncnn: w=96, h=96, c=6
         ncnn::Mat face_in(96, 96, 6);
         face_in.fill(0.0f);
 
         // 做一次推理
         ncnn::Extractor ex = net.create_extractor();
-        // 禁用 light mode，在预热时就分配最大内存池
-        ex.set_light_mode(false);
+        // Match production inference. Retaining every intermediate activation
+        // during warm-up can exceed the memory budget on CPU-only devices.
+        ex.set_light_mode(true);
 
-        // PNNX 默认输入
+        // PNNX-exported Wav2Lip mapping: in0=mel, in1=face.
         ex.input("in0", audio_in);
         ex.input("in1", face_in);
 
         ncnn::Mat out;
-        if (ex.extract("out0", out) != 0) {
-            ex.extract("output", out);
+        int ret = ex.extract("out0", out);
+
+        if (ret != 0 || out.empty()) {
+            std::cerr << "[ModelLoader] Warmup failed for Wav2Lip out0 output." << std::endl;
         }
     }
 
@@ -73,19 +75,21 @@ struct ModelLoader::Impl {
 
         // 配置 ncnn 选项
         net.opt.use_vulkan_compute = use_gpu;
-        net.opt.use_fp16_packed = true;
-        net.opt.use_fp16_storage = true;
+        net.opt.use_fp16_packed = false;
+        net.opt.use_fp16_storage = false;
+        net.opt.use_fp16_arithmetic = false;
+        net.opt.num_threads = 4;
 
-        // 加载先前情况，防止多次 load 内存泄漏
+        // 加载前先情况，防止多次 load 内存泄漏
         net.clear();
+
 
         // 开始加载
         int ret_p = net.load_param(param_path.c_str());
         int ret_b = net.load_model(bin_path.c_str());
-
         // 有效性检查
         if (ret_p != 0 || ret_b != 0) {
-            std::cerr << "[ModelLoader] Error: ncnn load failed (ret_p = "<< ret_p << ", ret_b = " << ret_b << ")" << std::endl;
+            std::cerr << "[ModelLoader] Error: ncnn load failed (ret_p=" << ret_p << ", ret_b=" << ret_b << ")" << std::endl;
             return false;
         }
 
@@ -101,7 +105,8 @@ struct ModelLoader::Impl {
     }
 };
 
-ModelLoader::ModelLoader() : pImpl(std::make_unique<Impl>()) {}
+ModelLoader::ModelLoader() : pImpl(std::make_unique<Impl>()){}
+
 ModelLoader::~ModelLoader() {
     if (pImpl->loading_thread.joinable()) {
         pImpl->loading_thread.join();
@@ -118,8 +123,9 @@ bool ModelLoader::load(const std::string& model_path, bool use_gpu) {
     float cost = 0;
     bool success = pImpl->load_internal(model_path, use_gpu, cost);
     if (success) {
-        std::cout << "[ModelLoader] Sync Load Success. Cost: " << cost << "ms" << std::endl;
+        std::cout << "[ModelLoader] Sync Load Success. Cost: " << cost << " ms" << std::endl;
     }
+
     return success;
 }
 
@@ -131,30 +137,17 @@ void ModelLoader::loadAsync(const std::string& model_path, LoadCallback callback
     }
 
     // 启动新线程
-    // callback 在测试中被传入定义为下面这个 lambda 函数整体
-    /*
-    [&](ncnn::Net* net, float cost) {
-        std::cout << "\n    -> [Callback] Load Finished!" << std::endl;
-        std::cout << "    -> [Callback] Cost inside thread: " << cost << " ms" << std::endl;
-
-        if (net) std::cout << "    -> [Callback] Net pointer valid." << std::endl;
-        is_finished = true;
-    }
-    */
     pImpl->loading_thread = std::thread([this, model_path, callback]() {
         float cost = 0;
         bool success = this->pImpl->load_internal(model_path, false, cost);
 
         if (success) {
-            std::cout << "[ModelLoader] Async Load Success. Cost: " << cost << "ms" << std::endl;
+            std::cout << "[ModelLoader] Async Load Success. Cost: " << cost << " ms" << std::endl;
             if (callback) {
-                callback(&this->pImpl->net, cost); // 此处调用的是传入的 callback -> lambda函数
-            }
+                callback(&this->pImpl->net, cost);
+            } 
         } else {
-            if (callback) {
-                callback(nullptr, 0);
-        
-            }
+            callback(nullptr, 0);
         }
     });
 }

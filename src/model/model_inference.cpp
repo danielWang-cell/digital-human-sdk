@@ -1,88 +1,96 @@
 #include <iostream>
 #include <chrono>
+#include <limits>
+#include <algorithm>
 #include <ncnn/benchmark.h>
-#include <spdlog/spdlog.h>
 
 #include "model/model_inference.h"
 
 namespace DigitalHuman {
 namespace Model {
+
 struct ModelInference::Impl {
-
-
-    
     ncnn::Net* net_ptr = nullptr;
     InferenceConfig config;
     float last_latency = 0.0f;
+    LatencyStats latency_stats;
 
-    // 核心推理逻辑
-    int infer_internal(const ncnn::Mat& audio, const ncnn::Mat& face, ncnn::Mat& out) {
-        // 首先指针校验
+    void applyConfig() {
         if (!net_ptr) {
-            spdlog::error("[Inference] Model not bound.");
-            return -1;
-        }
-        if (audio.empty()) {
-            spdlog::error("[Inference] Empty audio tensor.");
-            return -1;
-        }
-        if (face.empty()) {
-            spdlog::error("[Inference] Empty face tensor.");
-            return -1;
+            return;
         }
 
-        // 应用配置（须在 create_extractor 之前，extractor 创建时复制 net 的 opt）
         net_ptr->opt.num_threads = config.num_threads;
         net_ptr->opt.use_vulkan_compute = config.use_vulkan;
         net_ptr->opt.use_fp16_packed = config.use_fp16;
         net_ptr->opt.use_fp16_storage = config.use_fp16;
+        net_ptr->opt.use_fp16_arithmetic = config.use_fp16;
         net_ptr->opt.lightmode = config.light_mode;
+    }
 
-        // 创建提取器
+    int infer_internal(const ncnn::Mat& audio, const ncnn::Mat& face, ncnn::Mat& out) {
+        if (!net_ptr) {
+            std::cerr << "[Inference] Error: Model not bound!" << std::endl;
+            return -1;
+        }
+
+        if (audio.empty() || face.empty()) {
+            std::cerr << "[Inference] Error: Empty input tensor." << std::endl;
+            return -1;
+        }
+
+        // 先应用配置，再创建 extractor
+        applyConfig();
+
         ncnn::Extractor ex = net_ptr->create_extractor();
+        ex.set_light_mode(config.light_mode);
 
-        // 绑定输入
-        // in0: Audio [1, 1, 80, 16]
-        // in1: Face  [1, 6, 96, 96]
-        int ret = 0;
-        ret = ex.input("in0", audio);
+        // This PNNX-exported Wav2Lip model exposes mel as in0 and face as in1.
+        int ret = ex.input("in0", audio);
         if (ret != 0) {
-            spdlog::error("[Inference] Error setting input 'in0' (code {})", ret);
+            std::cerr << "[Inference] Error setting input 'in0' (code " << ret << ")" << std::endl;
             return -1;
         }
 
         ret = ex.input("in1", face);
         if (ret != 0) {
-            spdlog::error("[Inference] Error setting input 'in1' (code {})", ret);
+            std::cerr << "[Inference] Error setting input 'in1' (code " << ret << ")" << std::endl;
             return -1;
         }
 
-        // 执行计算并提取输出
-        // out0: Generated Face [1, 3, 96, 96]
         auto start = std::chrono::high_resolution_clock::now();
+
         ret = ex.extract("out0", out);
 
         auto end = std::chrono::high_resolution_clock::now();
         last_latency = std::chrono::duration<float, std::milli>(end - start).count();
+        ++latency_stats.sample_count;
+        latency_stats.total_ms += last_latency;
+        if (latency_stats.sample_count == 1) {
+            latency_stats.min_ms = last_latency;
+            latency_stats.max_ms = last_latency;
+        } else {
+            latency_stats.min_ms = std::min(latency_stats.min_ms, last_latency);
+            latency_stats.max_ms = std::max(latency_stats.max_ms, last_latency);
+        }
+
         if (ret != 0) {
-            spdlog::error("[Inference] Error extracting 'out0' (code {})", ret);
+            std::cerr << "[Inference] Error extracting output 'pred' (code " << ret << ")" << std::endl;
             return -1;
         }
 
-        // 结果校验
         if (out.empty()) {
-            spdlog::error("[Inference] Output tensor is empty.");
+            std::cerr << "[Inference] Error: Output tensor is empty!" << std::endl;
             return -1;
         }
 
-        // 维度校验
         if (out.w != 96 || out.h != 96 || out.c != 3) {
-            spdlog::warn("[Inference] Unexpected output shape {}x{}x{}", out.w, out.h, out.c);
+            std::cerr << "[Inference] Warning: Unexpected output shape "
+                      << out.w << "x" << out.h << "x" << out.c << std::endl;
         }
 
         return 0;
-        
-    } 
+    }
 };
 
 ModelInference::ModelInference() : pImpl(std::make_unique<Impl>()) {}
@@ -96,6 +104,7 @@ void ModelInference::bindModel(ncnn::Net* net) {
 
 void ModelInference::setConfig(const InferenceConfig& config) {
     pImpl->config = config;
+    pImpl->applyConfig();
 }
 
 int ModelInference::infer(const ncnn::Mat& audio_tensor,
@@ -108,6 +117,13 @@ float ModelInference::getLastLatency() const {
     return pImpl->last_latency;
 }
 
+LatencyStats ModelInference::getLatencyStats() const {
+    return pImpl->latency_stats;
+}
+
+void ModelInference::resetLatencyStats() {
+    pImpl->latency_stats = LatencyStats{};
+}
 
 } // namespace Model
 } // namespace DigitalHuman

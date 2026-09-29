@@ -1,5 +1,7 @@
-# 自动搜索源文件
-# 使用 GLOB_RECURSE 递归查找 src 下的所有子目录的 .cpp 文件
+# 这个 CMakeLists.txt 文件用于处理源码
+# 将 audio / video / core / model / utils 目录下的源码编译成一个 SDK 库，链接给上层使用
+
+# 自动搜集源文件
 file(GLOB_RECURSE SRC_FILES
     "audio/*.cpp"
     "video/*.cpp"
@@ -8,32 +10,39 @@ file(GLOB_RECURSE SRC_FILES
     "model/*.cpp"
 )
 
-# 生成 SDK 库
-# 将所有源文件编译成一个名为 digital_human_core 的动态链接库（SHARED）
+# 生成 SDK 动态库
 add_library(digital_human_core SHARED ${SRC_FILES})
 
-# 配置库的头文件搜索路径，并声明为 PUBLIC（让链接它的上层应用也能自动共享该路径）
-target_include_directories(digital_human_core PUBLIC 
+# 配置库的头文件搜索路径
+target_include_directories(digital_human_core PUBLIC
     ${PROJECT_SOURCE_DIR}/include
 )
 
-# 配置一些第三方库
-
-# 链接 OpenCV 库
-target_link_libraries(digital_human_core PUBLIC
-    ${OpenCV_LIBS}
-)
-
-message("OpenCV libraries: ${OpenCV_LIBS}")
-
-# 链接 OpenCV ncnn FFMPEG dlib 库
+# 链接第三方库
 target_link_libraries(digital_human_core PUBLIC
     ${OpenCV_LIBS}
     ncnn
     PkgConfig::FFMPEG
     ${PORTAUDIO_LIBRARIES}
     dlib::dlib
-    spdlog::spdlog
 )
 
+# 如果检测到 OpenMP，则链接 OpenMP
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(digital_human_core PUBLIC OpenMP::OpenMP_CXX)
+endif()
 
+# 主程序
+add_executable(digital_human_app main.cpp)
+
+# 将主程序链接到 SDK 库
+target_link_libraries(digital_human_app PRIVATE
+    digital_human_core
+)
+
+# 实时数字人的目标
+add_executable(digital_human_realtime_pulse_app main_realtime_pulse.cpp)
+
+target_link_libraries(digital_human_realtime_pulse_app PRIVATE
+    digital_human_core    
+)
