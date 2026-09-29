@@ -41,3 +41,4 @@ models/*.param
 **/tmp/
 *.Zone.Identifier
 *.docx
+*_Zone.Identifier
