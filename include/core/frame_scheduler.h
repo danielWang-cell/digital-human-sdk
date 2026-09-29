@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <memory>
 #include <opencv2/core.hpp>
 #include "video/video_frame.h"
@@ -12,11 +11,10 @@ using DigitalHuman::Video::VideoFrame;
 
 /**
  * @brief 帧调度器，根据音频时钟，从队列中选出最合适的视频帧进行渲染
- * 实现音画同步、掉帧处理(Drop)、等待处理(Wait)、抖动缓冲(Jitter Buffer) 
+ * 实现音画同步、掉帧处理(Drop)、等待处理(Wait)、抖动缓冲(Jitter Buffer)
  */
 class FrameScheduler {
 public:
-    
     /**
      * @brief 构造函数
      * @param target_fps 目标帧率，默认25fps
@@ -30,14 +28,14 @@ public:
 
     /**
      * @brief 推入新生成的推理帧，作为生产者
-     * @param frame 包含图像和 PTS 的视频帧
+     * @param frame 包含图像和PTS的视频帧
      */
     virtual void pushFrame(const VideoFrame& frame);
 
     /**
      * @brief 获取当前应该显示的帧
      * @param audio_time_ms 当前音频播放的时间，这是基准时间
-     * @return cv::Mat 要显示的图像，可能是新帧，也可能是上一帧的缓存
+     * @param cv::Mat 要显示的图像，可能是新帧，也可能是上一帧的缓存
      */
     cv::Mat getFrameForRender(double audio_time_ms);
 
@@ -51,10 +49,8 @@ public:
      */
     // 查看当前积压了多少帧
     size_t getQueueSize() const;
-
     // 累计丢帧数
     int getDroppedCount() const;
-
     // 是否处于缓冲状态
     bool isBuffering() const;
 
@@ -63,5 +59,5 @@ private:
     std::unique_ptr<Impl> pImpl;
 };
 
-}   // namespace Core
-}   // namespace Digital
+} // namespace Core
+} // namespace DigitalHuman
