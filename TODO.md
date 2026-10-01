@@ -76,3 +76,15 @@ T-101 dlib SIGILL
 - 前端视觉和页面细节：等待产品方向审批后再修改 `web/`。
 - 多人脸、复杂姿态、遮挡恢复：单人动态视频稳定后再做。
 - 公网部署和上传安全策略：API 服务跑通后再做。
+
+## L-004 云端 API 迁移与联调
+
+L-004 | owner=codex/root | branch=codex/cloud-api-integration | status=BLOCKED
+files: include/core/performance_metrics.h, src/model/inference_process.cpp, include/model/wav2lip_backend.h, src/model/wav2lip_backend.cpp, server/README.md, server/__init__.py, server/app.py, server/requirements.txt, docker/nginx/default.conf, docker/server.Dockerfile, docker-compose.yml, docs/deployment.md, TODO.md, docs/cloud_api_validation.md, ARCHITECTURE.md
+started: 2026-10-01 Asia/Shanghai
+
+用户已授权迁入现有开发副本必要改动、验证后推送功能分支并通过 PR 审查；不迁入 FaceTracker，不合并 main。模型、样本、构建及任务结果不提交。
+
+Additional L-004 files: .gitignore, .dockerignore, tests/test_server.py (runtime exclusions and API failure verification).
+
+Migration/build/API internal checks complete; file locks released. L-004 remains BLOCKED for local-client access and visual acceptance; see docs/cloud_api_validation.md. No production/public deployment or main merge.

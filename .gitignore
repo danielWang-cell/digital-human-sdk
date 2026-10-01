@@ -45,3 +45,8 @@ models/*.param
 
 # Local-only notes
 数字人项目面试十五题.md
+
+# Python task service runtime
+__pycache__/
+*.pyc
+.server-state/

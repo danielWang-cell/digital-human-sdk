@@ -1,5 +1,21 @@
 # Digital Human SDK 系统架构
 
+## API integration branch (2026-10-01)
+
+The `codex/cloud-api-integration` branch migrates the existing development
+copy's Wav2Lip backend, stage metrics, FastAPI sample task service and Compose
+configuration. FaceTracker changes are not part of this branch.
+
+`POST /api/tasks` accepts only `sample_id=default`. A single executor runs the
+local C++ renderer; task status and output are persisted. Renderer processes
+start in a separate process group so timeout terminates FFmpeg descendants.
+Queued/running task records become failed after API restart.
+
+The default proxy binds to loopback. This service has no authentication or
+remote Worker claim/heartbeat/result upload protocol. See `docs/deployment.md`
+for build/resource requirements and `docs/cloud_api_validation.md` for evidence.
+Historical baseline descriptions below predate this integration branch.
+
 ## 业务目标
 
 系统将静态照片或视频中的人脸与音频特征结合，生成嘴型同步的数字人视频。当前实现优先支持 CPU、单人、静态图片加音频和 Wav2Lip；动态视频、MuseTalk 和在线任务服务按阶段接入。

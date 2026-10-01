@@ -1,0 +1,11 @@
+.git
+.docker-build
+.server-state
+models
+MuseTalk
+web/node_modules
+web/dist
+*.log
+*.mp4
+*.jpg
+*.wav

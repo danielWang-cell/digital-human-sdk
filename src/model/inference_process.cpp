@@ -22,6 +22,8 @@
 #include "model/model_inference.h"
 #include "model/output_processor.h"
 #include "model/input_processor.h"
+#include "model/wav2lip_backend.h"
+#include "core/performance_metrics.h"
 
 namespace fs = std::filesystem;
 
@@ -238,6 +240,8 @@ struct InferenceProcessor::Impl {
     std::unique_ptr<ModelInference> wav2lip_engine_;
     std::unique_ptr<OutputProcessor> wav2lip_output_processor_;
     std::unique_ptr<InputProcessor> input_processor_;
+    std::unique_ptr<Wav2LipBackend> wav2lip_backend_;
+    Core::PerformanceMetrics metrics_;
 
     Core::FaceDetector face_detector_;
     bool dlib_ready_ = false;
@@ -306,7 +310,9 @@ struct InferenceProcessor::Impl {
 
     Impl(::ThreadSafeQueue<Core::InferenceTask>& in_queue,
          Core::FrameScheduler& scheduler)
-        : input_queue_(in_queue), frame_scheduler_(scheduler) {
+        : input_queue_(in_queue), frame_scheduler_(scheduler),
+          metrics_(!std::getenv("DH_PERF_METRICS") ||
+                   std::string(std::getenv("DH_PERF_METRICS")) != "0") {
         wav2lip_engine_ = std::make_unique<ModelInference>();
         wav2lip_output_processor_ = std::make_unique<OutputProcessor>();
         input_processor_ = std::make_unique<InputProcessor>();
@@ -347,6 +353,7 @@ struct InferenceProcessor::Impl {
         }
 
         wav2lip_engine_->bindModel(net);
+        wav2lip_backend_ = std::make_unique<Wav2LipBackend>(net);
 
         dlib_ready_ = false;
         for (const auto& candidate : buildLandmarkCandidates()) {
@@ -379,6 +386,7 @@ struct InferenceProcessor::Impl {
         config.use_fp16 = use_fp16_;
         config.light_mode = light_mode_;
         wav2lip_engine_->setConfig(config);
+        wav2lip_backend_->setConfig(config);
 
         return true;
     }
@@ -559,9 +567,14 @@ struct InferenceProcessor::Impl {
             return false;
         }
 
+        const auto cache_lookup_start = std::chrono::steady_clock::now();
+
         // 实时模式，每一帧都需要重新检测
         if (!static_face_cache_enabled_) {
-            return buildFaceCacheFromFrame(frame, out_cache);
+            const bool ready = buildFaceCacheFromFrame(frame, out_cache);
+            metrics_.add("face_cache_miss", std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - cache_lookup_start).count());
+            return ready;
         }
 
         // 静态模式
@@ -577,6 +590,8 @@ struct InferenceProcessor::Impl {
                 std::cout << "[InferenceProcessor] Static face cache hit: "
                           << cache_hit_us << " us" << std::endl;
             }
+            metrics_.add("face_cache_hit", std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - cache_lookup_start).count());
             return true;
         }
 
@@ -586,6 +601,9 @@ struct InferenceProcessor::Impl {
         if (!buildFaceCacheFromFrame(frame, static_cache_)) {
             return false;
         }
+
+        metrics_.add("face_cache_miss", std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - cache_lookup_start).count());
 
         out_cache = static_cache_;
         return true;
@@ -610,9 +628,14 @@ struct InferenceProcessor::Impl {
             if (current_model_type_ == InferenceModelType::Wav2Lip) {
                 cv::Mat final_out = task.base_face.clone();
 
-                 // 初始化缓存
+                // 初始化缓存
                 StaticFaceCache face_cache;
-                if (!getFaceCacheForTask(task.base_face, face_cache)) {
+                bool cache_ready = false;
+                {
+                    Core::PerformanceMetrics::Scope face_scope(metrics_, "face_detection_alignment");
+                    cache_ready = getFaceCacheForTask(task.base_face, face_cache);
+                }
+                if (!cache_ready) {
                     std::cerr << "[InferenceProcessor] Failed to get face cache, use original frame."
                               << std::endl;
 
@@ -625,15 +648,23 @@ struct InferenceProcessor::Impl {
                     continue;
                 }
 
-                ncnn::Mat audio_tensor = input_processor_->processAudio(task.audio_feature);
-
-                ncnn::Mat out_tensor;
-
-                if (!audio_tensor.empty() &&
-                    !face_cache.face_tensor.empty() &&
-                    wav2lip_engine_->infer(audio_tensor, face_cache.face_tensor, out_tensor) == 0) {
-                        cv::Mat generated_96 =
-                        wav2lip_output_processor_->process(out_tensor, cv::Mat(), cv::Mat());
+                InferenceResult backend_result;
+                FaceInput backend_face;
+                backend_face.aligned_face = face_cache.aligned_face;
+                backend_face.context.face_roi = face_cache.raw_rect;
+                backend_face.context.mouth_roi = cv::Rect(0, 48, 96, 48);
+                AudioFeature backend_audio;
+                backend_audio.values = task.audio_feature;
+                backend_audio.pts_ms = task.pts_ms;
+                {
+                    Core::PerformanceMetrics::Scope backend_scope(metrics_, "model_backend");
+                    if (!wav2lip_backend_->process(backend_audio, backend_face, backend_result)) {
+                        backend_result.success = false;
+                    }
+                }
+                if (backend_result.success) {
+                    Core::PerformanceMetrics::Scope output_scope(metrics_, "fusion_encoding");
+                        cv::Mat generated_96 = backend_result.generated_face;
 
                     if (!generated_96.empty()) {
                         // 1. 对 96×96 输出轻微锐化，改善放大后的软糊感
@@ -773,6 +804,10 @@ struct InferenceProcessor::Impl {
         }
         if (worker_thread_.joinable()) {
             worker_thread_.join();
+        }
+
+        if (metrics_.enabled()) {
+            std::cout << "[PerformanceMetrics] stages=" << metrics_.toJson() << std::endl;
         }
     }
 }; 
